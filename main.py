@@ -8,6 +8,7 @@ import glob
 import hashlib
 import json
 import os
+import platform
 import pprint
 import re
 import shutil
@@ -38,6 +39,7 @@ from core.utils import current_ip, fix_url, id_generator, update_recursive
 from core import fetching
 import uiautomator2 as u2
 import settings
+import threading
 
 __curdir__ = os.path.dirname(os.path.abspath(__file__))
 hbconn = None
@@ -67,6 +69,18 @@ class InstallError(Exception):
         self.stage = stage
         self.reason = reason
 
+def fuck_vivo_oppo(x_location=540, y_location=2100, delaytmie=10):
+    time.sleep(delaytmie)
+    for x in range(0,3):
+        time.sleep(2)
+        if platform.system() == 'Linux':
+            cmd = ["sudo"]
+        else:
+            cmd = []
+        cmd += ["adb", "shell", "input", "tap", str(x_location), str(y_location)]
+        completed = subprocess.run(cmd, stdout=subprocess.PIPE)
+        logger.debug("tap %s %s", str(x_location), str(y_location))
+        output = completed.stdout.decode('utf-8').strip()
 
 def app_install_local(serial: str, apk_path: str, launch: bool = False) -> str:
     """
@@ -101,8 +115,22 @@ def app_install_local(serial: str, apk_path: str, launch: bool = False) -> str:
         logger.debug("push %s %s", apk_path, dst)
         device.sync.push(apk_path, dst)
         logger.debug("install-remote %s", dst)
+
+        if platform.system() == 'Linux':
+            cmd = "sudo adb shell getprop ro.product.brand"
+        else:
+            cmd = "adb shell getprop ro.product.brand"
+
+        brand = os.popen(cmd).read()
+        logger.debug("app_install_local: device brand is ===>>> %s", brand)
+
+        if 'vivo' in brand.lower() or 'oppo' in brand.lower():
+            logger.debug("fuck %s!!!", brand.lower())
+            t1 = threading.Thread(target=fuck_vivo_oppo)
+            t1.start()
+
         # 调用pm install安装
-        device.install_remote(dst)
+        device.install_remote(dst, flags = ["-r", "-t", "-g"])
     except adbutils.errors.AdbInstallError as e:
         raise InstallError("install", e.output)
     # finally:
